@@ -1,6 +1,4 @@
-Here's a Table of Contents (TOC) for a comprehensive tutorial on ASP.NET Core, including advanced topics that senior software engineers should know:
-
----
+## ASP.NET Core
 
 ### Table of Contents
 
