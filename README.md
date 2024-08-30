@@ -1,3 +1,5 @@
+Here's the updated Table of Contents with OWIN added:
+
 ## ASP.NET Core
 
 ### Table of Contents
@@ -13,6 +15,10 @@
    - 2.2 Dependency Injection in ASP.NET Core
    - 2.3 Configuration and Options Patterns
    - 2.4 Logging and Diagnostics
+   - 2.5 Introduction to OWIN
+     - 2.5.1 OWIN Overview and Purpose
+     - 2.5.2 OWIN Middleware and Pipelines
+     - 2.5.3 Integrating OWIN with ASP.NET Core
 
 #### **3. Building Web Applications**
    - 3.1 Razor Pages Overview
