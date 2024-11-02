@@ -1,152 +1,245 @@
-To create a WebSocket hub with an abstract class `WebSocketHub<T>`, we can implement a pattern similar to ASP.NET Core SignalR. This approach encapsulates common WebSocket handling logic and makes it easy to extend for specific types of messages. We’ll also create a basic client example to test the WebSocket server.
+Let's go through creating the solution step-by-step, including setting up the project, configuring `launchSettings.json`, and creating the required classes and an `index.html` for testing the WebSocket. This guide assumes you're using .NET CLI and Visual Studio Code or Visual Studio, but you can adapt it for other environments.
 
-### Server-Side: WebSocket Hub Implementation
+### Step 1: Create the Solution and Project
 
-1. **Create an abstract `WebSocketHub<T>` class**.
-2. **Create a concrete hub class** that inherits from `WebSocketHub<T>` and defines how to handle specific messages.
-3. **Use the hub** in the WebSocket route.
+1. **Create the Solution**:
+   ```bash
+   dotnet new sln -n WebSocketSolution
+   cd WebSocketSolution
+   ```
 
-Here’s how to do it:
+2. **Create the ASP.NET Core Web API Project**:
+   ```bash
+   dotnet new web -n WebSocketApp
+   ```
 
-#### Step 1: Define `WebSocketHub<T>`
+3. **Add the Project to the Solution**:
+   ```bash
+   dotnet sln add WebSocketApp/WebSocketApp.csproj
+   ```
+
+4. **Navigate to the Project Directory**:
+   ```bash
+   cd WebSocketApp
+   ```
+
+### Step 2: Update `launchSettings.json`
+
+The `launchSettings.json` file is in the `Properties` folder in the project directory (`WebSocketApp/Properties/launchSettings.json`). This file is used to configure the environment for running the application locally.
+
+1. Open `launchSettings.json` in an editor.
+2. Add the WebSocket path in the `launchUrl` property. It might look like this after editing:
+
+```json
+{
+  "profiles": {
+    "WebSocketApp": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "launchUrl": "ws",
+      "applicationUrl": "http://localhost:5000",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}
+```
+
+### Step 3: Create the Abstract Class `WebSocketHub<T>`
+
+1. In the `WebSocketApp` project folder, create a new folder named `WebSockets` for organization.
+2. Inside the `WebSockets` folder, create a file named `WebSocketHub.cs`.
+3. Add the following code to `WebSocketHub.cs`:
 
 ```csharp
 using System.Net.WebSockets;
-using System.Text;
-using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 
-public abstract class WebSocketHub<T>
+namespace WebSocketApp.WebSockets
 {
-    public async Task HandleConnectionAsync(WebSocket webSocket)
+    public abstract class WebSocketHub<T>
     {
-        var buffer = new byte[1024 * 4];
-        
-        while (webSocket.State == WebSocketState.Open)
+        protected abstract Task OnConnectedAsync(WebSocket socket, T context);
+        protected abstract Task OnDisconnectedAsync(WebSocket socket, T context);
+        protected abstract Task OnMessageReceivedAsync(WebSocket socket, WebSocketReceiveResult result, byte[] buffer, T context);
+
+        public async Task HandleWebSocketAsync(HttpContext httpContext, T context)
         {
-            var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-            
-            if (result.MessageType == WebSocketMessageType.Close)
+            if (httpContext.WebSockets.IsWebSocketRequest)
             {
-                await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
+                var socket = await httpContext.WebSockets.AcceptWebSocketAsync();
+                await OnConnectedAsync(socket, context);
+                await ProcessWebSocketMessages(socket, context);
+                await OnDisconnectedAsync(socket, context);
             }
-            else if (result.MessageType == WebSocketMessageType.Text)
+            else
             {
-                var jsonMessage = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                var message = JsonSerializer.Deserialize<T>(jsonMessage);
-                
-                if (message != null)
+                httpContext.Response.StatusCode = 400;
+            }
+        }
+
+        private async Task ProcessWebSocketMessages(WebSocket socket, T context)
+        {
+            var buffer = new byte[1024 * 4];
+            WebSocketReceiveResult result = null;
+
+            try
+            {
+                do
                 {
-                    await OnMessageReceivedAsync(webSocket, message);
+                    result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                    if (result.MessageType == WebSocketMessageType.Close)
+                        break;
+
+                    await OnMessageReceivedAsync(socket, result, buffer, context);
                 }
+                while (!result.CloseStatus.HasValue);
+            }
+            finally
+            {
+                await socket.CloseAsync(
+                    result?.CloseStatus ?? WebSocketCloseStatus.NormalClosure,
+                    result?.CloseStatusDescription,
+                    CancellationToken.None
+                );
             }
         }
     }
-
-    protected abstract Task OnMessageReceivedAsync(WebSocket webSocket, T message);
-
-    protected async Task SendMessageAsync(WebSocket webSocket, T message)
-    {
-        var jsonMessage = JsonSerializer.Serialize(message);
-        var messageBuffer = Encoding.UTF8.GetBytes(jsonMessage);
-        await webSocket.SendAsync(new ArraySegment<byte>(messageBuffer), WebSocketMessageType.Text, true, CancellationToken.None);
-    }
 }
 ```
 
-- **`HandleConnectionAsync`**: Manages the WebSocket connection and deserializes incoming messages as type `T`.
-- **`OnMessageReceivedAsync`**: An abstract method that will handle messages of type `T` (implemented in subclasses).
-- **`SendMessageAsync`**: Sends messages of type `T` back to the client.
+### Step 4: Create the `EchoWebSocketHub` Class
 
-#### Step 2: Implement a Concrete Hub
-
-Here’s an example hub that handles chat messages:
+1. In the `WebSockets` folder, create a new file named `EchoWebSocketHub.cs`.
+2. Add the following code to `EchoWebSocketHub.cs`:
 
 ```csharp
-public class ChatMessage
-{
-    public string User { get; set; } = string.Empty;
-    public string Message { get; set; } = string.Empty;
-}
+using System.Net.WebSockets;
+using System.Threading;
+using System.Threading.Tasks;
 
-public class ChatHub : WebSocketHub<ChatMessage>
+namespace WebSocketApp.WebSockets
 {
-    protected override async Task OnMessageReceivedAsync(WebSocket webSocket, ChatMessage message)
+    public class EchoWebSocketHub : WebSocketHub<string> // Example using string as T
     {
-        Console.WriteLine($"{message.User}: {message.Message}");
-        
-        // Echo the message back to the client
-        await SendMessageAsync(webSocket, new ChatMessage
+        protected override Task OnConnectedAsync(WebSocket socket, string context)
         {
-            User = "Server",
-            Message = $"Echo: {message.Message}"
-        });
+            // Logic for when a connection is established
+            return Task.CompletedTask;
+        }
+
+        protected override Task OnDisconnectedAsync(WebSocket socket, string context)
+        {
+            // Logic for when a connection is closed
+            return Task.CompletedTask;
+        }
+
+        protected override async Task OnMessageReceivedAsync(WebSocket socket, WebSocketReceiveResult result, byte[] buffer, string context)
+        {
+            // Echo the received message back to the client
+            await socket.SendAsync(new ArraySegment<byte>(buffer, 0, result.Count), result.MessageType, result.EndOfMessage, CancellationToken.None);
+        }
     }
 }
 ```
 
-#### Step 3: Configure WebSocket in `Program.cs`
+### Step 5: Update `Program.cs` to Use WebSocket Middleware
 
-Add the `ChatHub` to the WebSocket route in `Program.cs`:
+1. Open `Program.cs` in the root of the `WebSocketApp` project.
+2. Replace the contents with the following code:
 
 ```csharp
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using WebSocketApp.WebSockets;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
 var app = builder.Build();
 
 app.UseWebSockets();
+app.UseCors();
+
+var echoWebSocketHub = new EchoWebSocketHub();
 
 app.Map("/ws", async context =>
 {
-    if (context.WebSockets.IsWebSocketRequest)
-    {
-        var chatHub = new ChatHub();
-        using var webSocket = await context.WebSockets.AcceptWebSocketAsync();
-        await chatHub.HandleConnectionAsync(webSocket);
-    }
-    else
-    {
-        context.Response.StatusCode = StatusCodes.Status400BadRequest;
-    }
+    var connectionContext = "ExampleContext"; // Replace with actual context data as needed
+    await echoWebSocketHub.HandleWebSocketAsync(context, connectionContext);
 });
 
 app.Run();
 ```
 
-### Client-Side Code
+### Step 6: Create `index.html` to Test WebSocket
 
-Below is an example client written in JavaScript. You can run it in the browser console.
+1. In the root of the `WebSocketApp` project, create a folder named `wwwroot`.
+2. Inside `wwwroot`, create an `index.html` file.
+3. Add the following HTML and JavaScript code to `index.html` to test the WebSocket connection:
 
-```javascript
-const socket = new WebSocket("ws://localhost:5000/ws");
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Echo Test</title>
+</head>
+<body>
+    <h1>WebSocket Echo Test</h1>
+    <input type="text" id="messageInput" placeholder="Enter a message" />
+    <button onclick="sendMessage()">Send</button>
+    <ul id="messages"></ul>
 
-socket.onopen = () => {
-    console.log("Connected to WebSocket server");
-    
-    // Send a test message
-    const message = { user: "Client", message: "Hello, server!" };
-    socket.send(JSON.stringify(message));
-};
+    <script>
+        const socket = new WebSocket("ws://localhost:5000/ws");
 
-socket.onmessage = (event) => {
-    const message = JSON.parse(event.data);
-    console.log("Received from server:", message);
-};
+        socket.onopen = () => {
+            console.log("Connected to WebSocket");
+        };
 
-socket.onclose = () => {
-    console.log("WebSocket connection closed");
-};
+        socket.onmessage = (event) => {
+            const messagesList = document.getElementById("messages");
+            const newMessage = document.createElement("li");
+            newMessage.textContent = `Received: ${event.data}`;
+            messagesList.appendChild(newMessage);
+        };
 
-socket.onerror = (error) => {
-    console.error("WebSocket error:", error);
-};
+        socket.onclose = () => {
+            console.log("WebSocket connection closed");
+        };
+
+        function sendMessage() {
+            const input = document.getElementById("messageInput");
+            socket.send(input.value);
+            input.value = "";
+        }
+    </script>
+</body>
+</html>
 ```
 
-### Explanation of Client Code
+### Step 7: Run the Application
 
-- **`socket.send(JSON.stringify(message))`**: Sends a message as a JSON string.
-- **`socket.onmessage`**: Logs incoming messages from the server.
-- **`socket.onclose`**: Notifies when the WebSocket connection closes.
+1. Run the application from the command line:
+   ```bash
+   dotnet run
+   ```
 
-This setup provides a reusable WebSocket handler with `WebSocketHub<T>`, allowing you to handle different types of messages by implementing new hubs based on the abstract class. The client-side code connects to the server, sends a message, and receives the echo response.
+2. Open `http://localhost:5000/index.html` in your browser. You should see the WebSocket Echo Test interface. Enter a message, click **Send**, and it should echo the message back, appearing in the list below.
+
+This completes the setup for a WebSocket-based echo server with a simple client interface to test the connection!
