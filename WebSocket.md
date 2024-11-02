@@ -187,9 +187,8 @@ app.Run();
 
 ### Step 6: Create `index.html` to Test WebSocket
 
-1. In the root of the `WebSocketApp` project, create a folder named `wwwroot`.
-2. Inside `wwwroot`, create an `index.html` file.
-3. Add the following HTML and JavaScript code to `index.html` to test the WebSocket connection:
+1. In the root of the `WebSocketApp` project
+2. Add the following HTML and JavaScript code to `index.html` to test the WebSocket connection:
 
 ```html
 <!DOCTYPE html>
@@ -197,36 +196,62 @@ app.Run();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebSocket Echo Test</title>
+    <title>WebSocket Client</title>
 </head>
 <body>
-    <h1>WebSocket Echo Test</h1>
-    <input type="text" id="messageInput" placeholder="Enter a message" />
-    <button onclick="sendMessage()">Send</button>
-    <ul id="messages"></ul>
+    <h1>WebSocket Client</h1>
+    <button onclick="connect()">Connect to WebSocket</button>
+    <button onclick="sendMessage()">Send Message</button>
+    <button onclick="disconnect()">Disconnect</button>
+    <div id="output"></div>
 
     <script>
-        const socket = new WebSocket("ws://localhost:5000/ws");
+        let socket;
 
-        socket.onopen = () => {
-            console.log("Connected to WebSocket");
-        };
+        function connect() {
+            try {
+                socket = new WebSocket("ws://localhost:5000/ws");
 
-        socket.onmessage = (event) => {
-            const messagesList = document.getElementById("messages");
-            const newMessage = document.createElement("li");
-            newMessage.textContent = `Received: ${event.data}`;
-            messagesList.appendChild(newMessage);
-        };
+                socket.onopen = () => {
+                    log("WebSocket connection established");
+                    setTimeout(() => socket.send("Hello, server!"), 1000); // Delay before first message
+                };
 
-        socket.onclose = () => {
-            console.log("WebSocket connection closed");
-        };
+                socket.onmessage = (event) => {
+                    log("Message from server: " + event.data);
+                };
+
+                socket.onclose = (event) => {
+                    log("WebSocket connection closed: " + event.reason);
+                };
+
+                socket.onerror = (error) => {
+                    log("WebSocket error: " + error.message);
+                };
+            } catch (error) {
+                log("WebSocket connection failed: " + error.message);
+            }
+        }
 
         function sendMessage() {
-            const input = document.getElementById("messageInput");
-            socket.send(input.value);
-            input.value = "";
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                const message = "Hello, server!";
+                socket.send(message);
+                log("Message sent to server: " + message);
+            } else {
+                log("WebSocket is not connected.");
+            }
+        }
+
+        function disconnect() {
+            if (socket) {
+                socket.close();
+            }
+        }
+
+        function log(message) {
+            const output = document.getElementById("output");
+            output.innerHTML += `<p>${message}</p>`;
         }
     </script>
 </body>
