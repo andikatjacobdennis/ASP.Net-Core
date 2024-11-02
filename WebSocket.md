@@ -4,8 +4,9 @@ Let's go through creating the solution step-by-step, including setting up the pr
 
 1. **Create the Solution**:
    ```bash
-   dotnet new sln -n WebSocketSolution
-   cd WebSocketSolution
+   md WebSocketExample
+   cd WebSocketExample
+   dotnet new sln -n WebSocketExample
    ```
 
 2. **Create the ASP.NET Core Web API Project**:
@@ -265,6 +266,6 @@ app.Run();
    dotnet run
    ```
 
-2. Open `http://localhost:5000/index.html` in your browser. You should see the WebSocket Echo Test interface. Enter a message, click **Send**, and it should echo the message back, appearing in the list below.
+2. Open `index.html` in your browser. You should see the WebSocket Echo Test interface. Enter a message, click **Send**, and it should echo the message back, appearing in the list below.
 
 This completes the setup for a WebSocket-based echo server with a simple client interface to test the connection!
