@@ -1,4 +1,6 @@
-Sure! Below is a step-by-step guide for creating an ASP.NET Core 8 solution that uses SignalR, showcasing its features, such as sending messages, handling connections, and broadcasting. This guide will cover everything from creating a solution to implementing various SignalR features.
+# SignalR
+
+Step-by-step guide for creating an ASP.NET Core 8 solution that uses SignalR, showcasing its features, such as sending messages, handling connections, and broadcasting. This guide will cover everything from creating a solution to implementing various SignalR features.
 
 ### Step 1: Set Up Your Development Environment
 
