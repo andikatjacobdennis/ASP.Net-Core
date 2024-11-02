@@ -1,4 +1,4 @@
-#WebSocket
+# WebSocket
 
 Let's go through creating the solution step-by-step, including setting up the project, configuring `launchSettings.json`, and creating the required classes and an `index.html` for testing the WebSocket. This guide assumes you're using .NET CLI and Visual Studio Code or Visual Studio, but you can adapt it for other environments.
 
