@@ -6,9 +6,11 @@ Let's go through creating the solution step-by-step, including setting up the pr
 
 1. **Create the Solution**:
    ```bash
+   
    md WebSocketExample
    cd WebSocketExample
    dotnet new sln -n WebSocketExample
+   
    ```
 
 2. **Create the ASP.NET Core Web API Project**:
